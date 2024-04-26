@@ -1,0 +1,188 @@
+{
+  "name": "afni-proc",
+  "label": "AFNI PROC",
+  "description": "(HPC Compatible) AFNI (Analysis of Functional NeuroImages) and AFNI's afni_proc.py is a program meant to create single subject processing scripts for task, resting state or surface based analyses. Afni_prog can be used to compute general linear model beta weights for task based fMRI analysis. This gear can be used to process a number of input tpyes including raw data, or preprocessed data using a BIDS compliant analyses (e.g. fmriprep or HCPPipeline). For examples of the afni_proc script used in flywheel see our 'examples.'",
+  "version": "23.2.04_inc0.1.2",
+  "custom": {
+    "flywheel": {
+      "classification": [
+        "fMRI"
+      ],
+      "components": [
+        "AFNI"
+      ],
+      "modality": [
+        "MR"
+      ],
+      "suite": "Computational Models (GLM, etc)",
+      "type": [
+        "NIFTI"
+      ]
+    },
+    "gear-builder": {
+        "category": "analysis",
+        "image": "amhe4269/afni-proc:23.2.04_inc0.1.2"
+    },
+    "license": "Apache-2.0"
+  },
+  "inputs": {
+    "api-key": {
+          "base": "api-key"
+    },
+    "preprocessing-pipeline-zip": {
+      "description": "Select preprocessing output directory zip. Preprocessing outputs must be in bids derivative format. Example compatible pipelines: fmriprep, hcppipeline. If no previous analysis directory is given, gear will be run using raw bids data.",
+      "base": "file",
+      "optional": true
+    },
+    "additional-input-one": {
+      "description": "(Optional) Additional preprocessing output directory. Preprocessing outputs must be in bids derivative format. ",
+      "base": "file",
+      "optional": true
+    },
+    "confounds-file": {
+      "description": "DO NOT USE (Optional) Additional input used as confound timeseries in afni script. If no input is passed, default confounds file is used from bids derivative directory '*counfound_timeseries.tsv'.",
+      "base": "file",
+      "optional": true
+    },
+    "event-file": {
+      "base": "file",
+      "description": "DO NOT USE (Optional) Stimulus timing custom text files. Identify in config options the event files type (BIDS-Formatted|FSL-3 Column Format|FSL-1 Entry Per Volume). If no event file is passed, events will be downloaded from flywheel acquisition (recommended).",
+      "optional": true
+    },
+    "SCRIPT" : {
+      "base": "file",
+      "optional": true,
+      "description": "AFNI script (afni_proc or other afni programs) used as the template for session or subject level analysis. Record all common processing decisions in this file, for example smoothing kernel size, general linear model contrasts, etc. ",
+      "type": {
+        "enum": [
+          "text"
+        ]
+      }
+    }
+  },
+  "config": {
+    "events-suffix": {
+        "optional": true,
+        "description": "suffix used to select correct events file from bids curated dataset. Events may be pulled directly from acquisition container if no event file is passed as input.",
+        "type": "string"
+    },
+    "confound-list": {
+        "optional": true,
+        "type":"string",
+        "description": "Comma seperated list of components to be included in feat glm confounds. Confound timeseries will be pulled from confound file in inputs if passed, otherwise defaults to using bids derivative file '*counfound_timeseries.tsv'. Example entry: rot_x, rot_y, rot_z, trans_x, trans_y, trans_z. If left blank no confounds will be included in feat analysis."
+    },
+    "evformat": {
+      "default": "BIDS-Formatted",
+      "description": "Select type of explanatory variable. Selected format should match format provided in the events input file, or files downloaded directly from flywheel acquisition. Options: BIDS-Formatted|FSL-3 Column Format|FSL-1 Entry Per Volume.",
+      "type": "string",
+      "enum": [
+        "BIDS-Formatted",
+        "FSL-3 Column Format",
+        "FSL-1 Entry Per Volume"
+      ]
+    },
+    "allow-missing-evs": {
+        "type": "boolean",
+        "default": false,
+        "description": "Set to true to replace missing evs from template fsf with empty (zeros) regressor instead of exiting with error. Only select this option if you are confident the naming convention for events matches the fsf template."
+    },
+    "write-as-married": {
+        "type": "boolean",
+        "default": false,
+        "description": "(Default: False) Boolean flag to include duration in afni event timing files. Without event timing, duration should be prescribed in template script."
+    },
+    "run-level": {
+        "default": "afni-proc",
+        "description": "Select appropriate run type for analysis. If 'other' selected some preperation steps are skipped.",
+        "type": "string",
+        "enum": [
+          "afni-proc",
+          "other"
+        ]
+    },
+    "gear-log-level": {
+      "default": "INFO",
+      "description": "Gear Log verbosity level (ERROR|WARNING|INFO|DEBUG)",
+      "type": "string",
+      "enum": [
+        "ERROR",
+        "WARNING",
+        "INFO",
+        "DEBUG"
+      ]
+    },
+    "gear-dry-run": {
+        "default": false,
+        "description": "Do everything except actually executing gear",
+        "type": "boolean"
+    },
+    "gear-writable-dir": {
+        "default": "/pl/active/ics/fw_temp_data",
+        "description": "Gears expect to be able to write temporary files in /flywheel/v0/.  If this location is not writable (such as when running in Singularity), this path will be used instead.  fMRIPrep creates a large number of files so this disk space should be fast and local.",
+        "type": "string"
+    },
+    "slurm-cpu": {
+        "default": "2",
+        "description": "[SLURM] How many cpu-cores to request per command/task. This is used for the underlying '--cpus-per-task' option. If not running on HPC, then this flag is ignored",
+        "type": "string"
+    },
+    "slurm-ram": {
+        "default": "16G",
+        "description": "[SLURM] How much RAM to request. This is used for the underlying '--mem-per-cpu' option. If not running on HPC, then this flag is ignored",
+        "type": "string"
+    },
+    "slurm-ntasks": {
+        "default": "1",
+        "description": "[SLURM] Total number of tasks/commands across all nodes (not equivalent to neuroimaging tasks). Using a value greater than 1 for code that has not been parallelized will not improve performance (and may break things).",
+        "type": "string"
+    },
+    "slurm-nodes": {
+        "default": "1",
+        "description": "[SLURM] How many HPC nodes to run on",
+        "type": "string"
+    },
+    "slurm-partition": {
+        "default": "blanca-ics",
+        "description": "[SLURM] Blanca, Alpine, or Summit partitions can be entered",
+        "type": "string"
+    },
+    "slurm-qos": {
+        "default": "blanca-ics",
+        "description": "[SLURM] For Blanca the QOS has a different meaning, ie blanca-ics vs blanca-ibg, etc. For Alpine and Summit, the QOS should be set to normal if running a job for 1 day or less, and set to long if running a job with a maximum walltime of 7 days",
+        "type": "string"
+    },
+    "slurm-account": {
+        "default": "blanca-ics",
+        "description": "[SLURM] For Blanca the ACCOUNT should be set to the sub-account of choice (e.g. blanca-ics-rray). For Alpine, the account should be set to ucb-general, or the specialized account granted by RC: ucb278_asc1",
+        "type": "string"
+    },
+    "slurm-time": {
+        "default": "1428",
+        "description": "[SLURM] Maximum walltime requested after which your job will be cancelled if it hasn't finished. Default to 1 day",
+        "type": "string"
+    },
+    "slurm-xnode": {
+        "default": "",
+        "description": "[SLURM] List of node names to exclude from slurm script (e.g. bnode0101, bnode0102)",
+        "type": "string"
+    }
+  },
+  "environment": {
+    "FLYWHEEL": "/flywheel/v0",
+    "USER": "flywheel",
+    "PATH": "/opt/poetry/bin:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/abin/",
+    "REQUESTS_CA_BUNDLE": "/etc/ssl/certs/ca-certificates.crt",
+    "python3": "/opt/venv/bin/python3",
+    "python": "/opt/venv/bin/python",
+    "POETRY_HOME": "/opt/poetry",
+    "POETRY_VERSION": "1.7.0",
+    "POETRY_VIRTUALENVS_CREATE": "false"
+  },
+  "command": "poetry run python /flywheel/v0/run.py",
+  "author": "Intermountain Neuroimaging Consortium",
+  "maintainer": "Amy Hegarty <amhe4260@colorado.edu>",
+  "cite": "",
+  "license": "MIT",
+  "source": "https://afni.nimh.nih.gov/",
+  "url": "https://github.com/intermountainneuroimaging/afni-proc"
+}
