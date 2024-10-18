@@ -127,7 +127,7 @@ def parse_config(
         if error_code > 0 and not config.get("gear-ignore-bids-errors"):
             errors.append(f"BIDS Error(s) detected.  Did not run {CONTAINER}")
 
-        app_options["pipeline"] = "BIDS"
+        app_options["pipeline"] = "bids"
 
     # additional preprocessing input
     if gear_context.get_input_path("additional-input-one"):

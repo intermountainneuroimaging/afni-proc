@@ -1,6 +1,7 @@
 """Main module."""
 
 import logging, os, shutil
+import re
 from pathlib import Path
 import errorhandler
 from typing import List, Tuple
@@ -155,11 +156,15 @@ def run(gear_options: dict, app_options: dict, gear_context: GearToolkitContext)
 
     elif app_options["run-level"] == "other":
         log.warning("Ignoring configuration settings: DropNonSteadyState, DummyVolumes, evformat, events-suffix, allow-missing-evs")
-        log.info("output-name: %s", str(app_options["output-name"]))
         log.info("Using afni script: %s", Path(gear_options["SCRIPT"]).name)
 
         # DO anything? or just run??
-        runfile = gear_options["SCRIPT"]
+        # make final script for run... apply lookup table
+        if check_for_special_chars(gear_options["SCRIPT"]):
+            runfile = proc.make_run_script(gear_options, app_options)
+        else:
+            runfile = gear_options["SCRIPT"]
+
         cmd = ["bash", runfile]
         stdout, stderr, run_error = exec_command(
             cmd,
@@ -174,6 +179,22 @@ def run(gear_options: dict, app_options: dict, gear_context: GearToolkitContext)
 
     return run_error
 
+
+def check_for_special_chars(file_path):
+    """Checks a text file for special characters.
+
+    Args:
+        file_path: The path to the text file.
+
+    Returns:
+        True if special characters are found, False otherwise.
+    """
+
+    with open(file_path, 'r') as file:
+        for line in file:
+            if re.search(r'[^a-zA-Z0-9\s]', line):  # Adjust the pattern to include allowed characters
+                return True
+    return False
 
 
 
