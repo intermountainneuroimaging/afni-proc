@@ -203,6 +203,5 @@ RUN poetry install --no-dev
 
 # Configure entrypoint
 RUN chmod a+x $FLYWHEEL/run.py
-# make root writable because afni needs to write to its software folder
 RUN chmod -R 755 /root
 ENTRYPOINT ["poetry","run","python","/flywheel/v0/run.py"]

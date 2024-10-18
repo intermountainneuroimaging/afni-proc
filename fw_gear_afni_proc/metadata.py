@@ -48,3 +48,4 @@ def find_matching_acq(bids_name, context):
             for f in full_acq.files:
                 if bids_name in f.info.get("BIDS").get("Filename") and "nii" in f.name:
                     return full_acq, f
+
