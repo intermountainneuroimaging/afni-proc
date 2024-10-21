@@ -130,7 +130,11 @@ def run(gear_options: dict, app_options: dict, gear_context: GearToolkitContext)
                                                   "*" + name + "*_desc-confounds_timeseries.tsv"))[0])
 
         # step 4: pass single concatenated motion file
-        concat_motion_file(files, nvolumes, regress_motion_file)
+        try:
+            concat_motion_file(files, nvolumes, regress_motion_file)
+        except:
+            if app_options["pipeline"] is not "bids":
+                log.warning("Unable to locate or concatenate head motion")
 
         # step 5: generate additional confound regressors...
         if app_options["confound-list"] and regress_confound_file:

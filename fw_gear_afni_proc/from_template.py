@@ -40,17 +40,20 @@ class proc:
                 this_flag = True
 
         # apply filemapper to each file pattern and store
-        if os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
-            pipeline = "fmriprep"
+        subdirs = get_subdirectories(gear_options["work-dir"])
+
+        if "pipeline" in app_options:
+            pass
+        elif os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
+            app_options["pipeline"] = "fmriprep"
         elif os.path.isdir(os.path.join(gear_options["work-dir"], "bids-hcp")):
-            pipeline = "bids-hcp"
-        elif len(os.walk(gear_options["work-dir"]).next()[1]) == 1:
-            pipeline = os.walk(gear_options["work-dir"]).next()[1]
+            app_options["pipeline"] = "bids-hcp"
+        elif len(subdirs[0]) > 0:
+            app_options["pipeline"] = os.path.basename(subdirs[0])
         else:
             log.error("Unable to interpret pipeline for analysis. Contact gear maintainer for more details.")
-        app_options["pipeline"] = pipeline
 
-        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": pipeline, "SUBJECT": app_options["sid"],
+        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": app_options["pipeline"], "SUBJECT": app_options["sid"],
                         "SESSION": app_options["sesid"]}
 
         func_files = []
@@ -120,17 +123,16 @@ class proc:
                 this_flag = True
 
         # apply filemapper to each file pattern and store
-        if os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
-            pipeline = "fmriprep"
+        if "pipeline" in app_options:
+            pass
+        elif os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
+            app_options["pipeline"] = "fmriprep"
         elif os.path.isdir(os.path.join(gear_options["work-dir"], "bids-hcp")):
-            pipeline = "bids-hcp"
-        elif len(os.walk(gear_options["work-dir"]).next()[1]) == 1:
-            pipeline = os.walk(gear_options["work-dir"]).next()[1]
+            app_options["pipeline"] = "bids-hcp"
         else:
             log.error("Unable to interpret pipeline for analysis. Contact gear maintainer for more details.")
-        app_options["pipeline"] = pipeline
 
-        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": pipeline, "SUBJECT": app_options["sid"],
+        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": app_options["pipeline"], "SUBJECT": app_options["sid"],
                         "SESSION": app_options["sesid"]}
 
         event_files = []
@@ -171,17 +173,17 @@ class proc:
                 this_flag = True
 
         # apply filemapper to each file pattern and store
-        if os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
-            pipeline = "fmriprep"
+        if "pipeline" in app_options:
+            pass
+        elif os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
+            app_options["pipeline"] = "fmriprep"
         elif os.path.isdir(os.path.join(gear_options["work-dir"], "bids-hcp")):
-            pipeline = "bids-hcp"
-        elif len(os.walk(gear_options["work-dir"]).next()[1]) == 1:
-            pipeline = os.walk(gear_options["work-dir"]).next()[1]
+            app_options["pipeline"] = "bids-hcp"
         else:
             log.error("Unable to interpret pipeline for analysis. Contact gear maintainer for more details.")
-        app_options["pipeline"] = pipeline
 
-        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": pipeline, "SUBJECT": app_options["sid"],
+        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": app_options["pipeline"],
+                        "SUBJECT": app_options["sid"],
                         "SESSION": app_options["sesid"]}
 
         motion_file = []
@@ -224,17 +226,17 @@ class proc:
                 this_flag = True
 
         # apply filemapper to each file pattern and store
-        if os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
-            pipeline = "fmriprep"
+        if "pipeline" in app_options:
+            pass
+        elif os.path.isdir(os.path.join(gear_options["work-dir"], "fmriprep")):
+            app_options["pipeline"] = "fmriprep"
         elif os.path.isdir(os.path.join(gear_options["work-dir"], "bids-hcp")):
-            pipeline = "bids-hcp"
-        elif len(os.walk(gear_options["work-dir"]).next()[1]) == 1:
-            pipeline = os.walk(gear_options["work-dir"]).next()[1]
+            app_options["pipeline"] = "bids-hcp"
         else:
             log.error("Unable to interpret pipeline for analysis. Contact gear maintainer for more details.")
-        app_options["pipeline"] = pipeline
 
-        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": pipeline, "SUBJECT": app_options["sid"],
+        lookup_table = {"WORKDIR": str(gear_options["work-dir"]), "PIPELINE": app_options["pipeline"],
+                        "SUBJECT": app_options["sid"],
                         "SESSION": app_options["sesid"]}
 
         confound_files = []
@@ -246,7 +248,6 @@ class proc:
         app_options["confound_files"] = confound_files[0]
 
         return confound_files[0]
-
 
     def get_dummy_volumes(gear_options: dict, app_options: dict):
         """
@@ -282,7 +283,6 @@ class proc:
 
         return app_options["DummyVolumes"]
 
-
     def make_run_script(gear_options: dict, app_options: dict):
         """
         Apply lookup table to all entrys and save run script
@@ -305,10 +305,17 @@ class proc:
 
         txt_out = apply_lookup(txt, lookup_table)
 
-        with open(outfile,"w") as f:
+        with open(outfile, "w") as f:
             for l in txt_out.split("\n"):
-                f.write(l+"\n")
+                f.write(l + "\n")
 
         app_options["run_script"] = outfile
 
         return outfile
+
+def get_subdirectories(rootpath):
+    subdirectories = []
+    for root, dirs, files in os.walk(rootpath):
+        for dir in dirs:
+            subdirectories.append(os.path.join(root, dir))
+    return subdirectories
