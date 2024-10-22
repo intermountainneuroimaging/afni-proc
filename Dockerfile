@@ -197,6 +197,10 @@ COPY pyproject.toml poetry.lock $FLYWHEEL/
 WORKDIR $FLYWHEEL
 RUN poetry install --no-root --no-dev
 
+# add bc
+RUN apt update &&\
+    apt install -y --no-install-recommends bc
+
 COPY run.py manifest.json $FLYWHEEL/
 COPY fw_gear_afni_proc $FLYWHEEL/fw_gear_afni_proc
 RUN poetry install --no-dev
