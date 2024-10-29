@@ -79,7 +79,44 @@ def parse_config(
 
     # test afni installation first
     cmd = "afni_system_check.py -check_all"
-    log.debug("\n %s", cmd)
+    log.info("\n %s", cmd)
+    terminal = sp.Popen(
+        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    )
+    stdout, stderr = terminal.communicate()
+    log.info(stdout)
+    log.info(stderr)
+
+    cmd = "cp /root/abin//AFNI.afnirc ~/.afnirc"
+    log.info("\n %s", cmd)
+    terminal = sp.Popen(
+        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    )
+    stdout, stderr = terminal.communicate()
+    log.info(stdout)
+    log.info(stderr)
+
+    cmd = "suma -update_env"
+    log.info("\n %s", cmd)
+    terminal = sp.Popen(
+        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    )
+    stdout, stderr = terminal.communicate()
+    log.info(stdout)
+    log.info(stderr)
+
+    cmd = "apsearch -update_all_afni_help"
+    log.info("\n %s", cmd)
+    terminal = sp.Popen(
+        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    )
+    stdout, stderr = terminal.communicate()
+    log.info(stdout)
+    log.info(stderr)
+
+    log.info("Take 2...")
+    cmd = "afni_system_check.py -check_all"
+    log.info("\n %s", cmd)
     terminal = sp.Popen(
         cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
     )
