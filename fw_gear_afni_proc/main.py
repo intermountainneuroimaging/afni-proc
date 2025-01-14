@@ -150,6 +150,8 @@ def run(gear_options: dict, app_options: dict, gear_context: GearToolkitContext)
 
         #run!
         cmd = ["bash",runfile]
+        if gear_options.config.get("gear-log-to-file"):
+            cmd = cmd + [">", "output/log1.txt"]
         stdout, stderr, run_error = exec_command(
             cmd,
             dry_run=gear_options["dry-run"],

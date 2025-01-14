@@ -2,7 +2,7 @@
   "name": "afni-proc",
   "label": "AFNI PROC",
   "description": "(HPC Compatible) AFNI (Analysis of Functional NeuroImages) and AFNI's afni_proc.py is a program meant to create single subject processing scripts for task, resting state or surface based analyses. Afni_prog can be used to compute general linear model beta weights for task based fMRI analysis. This gear can be used to process a number of input tpyes including raw data, or preprocessed data using a BIDS compliant analyses (e.g. fmriprep or HCPPipeline). For examples of the afni_proc script used in flywheel see our 'examples.'",
-  "version": "23.2.04_inc0.1.2rc4",
+  "version": "24.0.07_inc0.1.2rc5",
   "custom": {
     "flywheel": {
       "classification": [
@@ -21,7 +21,7 @@
     },
     "gear-builder": {
         "category": "analysis",
-        "image": "amhe4269/afni-proc:23.2.04_inc0.1.2rc4"
+        "image": "amhe4269/afni-proc:24.0.07_inc0.1.2rc5"
     },
     "license": "Apache-2.0"
   },
@@ -110,6 +110,11 @@
         "INFO",
         "DEBUG"
       ]
+    },
+    "gear-log-to-file": {
+        "default": false,
+        "description": "Instead of logging in real time, save log output of fMRIPrep to the file output/log#.txt (where # is 1 or 2 depending on how many times fMRIPrep was run.",
+        "type": "boolean"
     },
     "gear-dry-run": {
         "default": false,

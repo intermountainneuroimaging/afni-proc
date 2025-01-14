@@ -46,7 +46,7 @@ def parse_config(
         "client": gear_context.client,
         "environ": os.environ,
         "debug": gear_context.config.get("debug"),
-
+        "config": gear_context.config,
         "SCRIPT": gear_context.get_input_path("SCRIPT")
     }
 
@@ -77,6 +77,8 @@ def parse_config(
         "params": ""
     }
 
+    level = log.getEffectiveLevel()
+    log.info("Log level: %s",level)
     # test afni installation first
     cmd = "afni_system_check.py -check_all"
     log.info("\n %s", cmd)
@@ -88,57 +90,37 @@ def parse_config(
     log.info(stderr)
 
     cmd = "cp /root/abin//AFNI.afnirc ~/.afnirc"
-    log.info("\n %s", cmd)
-    terminal = sp.Popen(
-        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
-    )
-    stdout, stderr = terminal.communicate()
-    log.info(stdout)
-    log.info(stderr)
-
-    cmd = "suma -update_env"
-    log.info("\n %s", cmd)
-    terminal = sp.Popen(
-        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
-    )
-    stdout, stderr = terminal.communicate()
-    log.info(stdout)
-    log.info(stderr)
-
-    cmd = "apsearch -update_all_afni_help"
-    log.info("\n %s", cmd)
-    terminal = sp.Popen(
-        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
-    )
-    stdout, stderr = terminal.communicate()
-    log.info(stdout)
-    log.info(stderr)
-
-    log.info("Take 2...")
-    cmd = "afni_system_check.py -check_all"
-    log.info("\n %s", cmd)
-    terminal = sp.Popen(
-        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
-    )
-    stdout, stderr = terminal.communicate()
-    log.info(stdout)
-    log.info(stderr)
-
-    cmd = "printenv"
     log.debug("\n %s", cmd)
     terminal = sp.Popen(
         cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
     )
     stdout, stderr = terminal.communicate()
-    log.info(stdout)
-    log.info(stderr)
+    log.debug(stdout)
+    log.debug(stderr)
+
+    cmd = "suma -update_env"
+    log.debug("\n %s", cmd)
+    terminal = sp.Popen(
+        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    )
+    stdout, stderr = terminal.communicate()
+    log.debug(stdout)
+    log.debug(stderr)
+
+    cmd = "apsearch -update_all_afni_help"
+    log.debug("\n %s", cmd)
+    terminal = sp.Popen(
+        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    )
+    stdout, stderr = terminal.communicate()
+    log.debug(stdout)
+    log.debug(stderr)
 
     if gear_context.get_input_path("preprocessing-pipeline-zip"):
         # unzip input files
         gear_options["preproc_zipfile"] = gear_context.get_input_path("preprocessing-pipeline-zip")
         log.info("Inputs file path, %s", gear_options["preproc_zipfile"])
         unzip_inputs(gear_options, gear_options["preproc_zipfile"])
-
 
     else:
         # Given the destination container, figure out if running at the project,
