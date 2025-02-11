@@ -1,8 +1,8 @@
 {
-  "name": "afni-proc",
-  "label": "AFNI PROC",
+  "name": "afni",
+  "label": "AFNI",
   "description": "(HPC Compatible) AFNI (Analysis of Functional NeuroImages) and AFNI's afni_proc.py is a program meant to create single subject processing scripts for task, resting state or surface based analyses. Afni_prog can be used to compute general linear model beta weights for task based fMRI analysis. This gear can be used to process a number of input tpyes including raw data, or preprocessed data using a BIDS compliant analyses (e.g. fmriprep or HCPPipeline). For examples of the afni_proc script used in flywheel see our 'examples.'",
-  "version": "24.0.07_inc0.1.2rc7",
+  "version": "24.0.07_inc0.1.2rc8",
   "custom": {
     "flywheel": {
       "classification": [
@@ -21,7 +21,7 @@
     },
     "gear-builder": {
         "category": "analysis",
-        "image": "amhe4269/afni-proc:24.0.07_inc0.1.2rc7"
+        "image": "amhe4269/afni:24.0.07_inc0.1.2rc8"
     },
     "license": "Apache-2.0"
   },
@@ -61,45 +61,6 @@
     }
   },
   "config": {
-    "events-suffix": {
-        "optional": true,
-        "description": "suffix used to select correct events file from bids curated dataset. Events may be pulled directly from acquisition container if no event file is passed as input.",
-        "type": "string"
-    },
-    "confound-list": {
-        "optional": true,
-        "type":"string",
-        "description": "Comma seperated list of components to be included in feat glm confounds. Confound timeseries will be pulled from confound file in inputs if passed, otherwise defaults to using bids derivative file '*counfound_timeseries.tsv'. Example entry: rot_x, rot_y, rot_z, trans_x, trans_y, trans_z. If left blank no confounds will be included in feat analysis."
-    },
-    "evformat": {
-      "default": "BIDS-Formatted",
-      "description": "Select type of explanatory variable. Selected format should match format provided in the events input file, or files downloaded directly from flywheel acquisition. Options: BIDS-Formatted|FSL-3 Column Format|FSL-1 Entry Per Volume.",
-      "type": "string",
-      "enum": [
-        "BIDS-Formatted",
-        "FSL-3 Column Format",
-        "FSL-1 Entry Per Volume"
-      ]
-    },
-    "allow-missing-evs": {
-        "type": "boolean",
-        "default": false,
-        "description": "Set to true to replace missing evs from template fsf with empty (zeros) regressor instead of exiting with error. Only select this option if you are confident the naming convention for events matches the fsf template."
-    },
-    "write-as-married": {
-        "type": "boolean",
-        "default": false,
-        "description": "(Default: False) Boolean flag to include duration in afni event timing files. Without event timing, duration should be prescribed in template script."
-    },
-    "run-level": {
-        "default": "afni-proc",
-        "description": "Select appropriate run type for analysis. If 'other' selected some preperation steps are skipped.",
-        "type": "string",
-        "enum": [
-          "afni-proc",
-          "other"
-        ]
-    },
     "gear-log-level": {
       "default": "INFO",
       "description": "Gear Log verbosity level (ERROR|WARNING|INFO|DEBUG)",
@@ -122,17 +83,17 @@
         "type": "boolean"
     },
     "gear-writable-dir": {
-        "default": "/pl/active/ics/fw_temp_data",
+        "default": "/scratch/alpine/ics/fw_temp_data",
         "description": "Gears expect to be able to write temporary files in /flywheel/v0/.  If this location is not writable (such as when running in Singularity), this path will be used instead.  fMRIPrep creates a large number of files so this disk space should be fast and local.",
         "type": "string"
     },
     "slurm-cpu": {
-        "default": "2",
+        "default": "8",
         "description": "[SLURM] How many cpu-cores to request per command/task. This is used for the underlying '--cpus-per-task' option. If not running on HPC, then this flag is ignored",
         "type": "string"
     },
     "slurm-ram": {
-        "default": "16G",
+        "default": "4G",
         "description": "[SLURM] How much RAM to request. This is used for the underlying '--mem-per-cpu' option. If not running on HPC, then this flag is ignored",
         "type": "string"
     },
@@ -162,7 +123,7 @@
         "type": "string"
     },
     "slurm-time": {
-        "default": "1428",
+        "default": "1440",
         "description": "[SLURM] Maximum walltime requested after which your job will be cancelled if it hasn't finished. Default to 1 day",
         "type": "string"
     },

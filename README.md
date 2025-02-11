@@ -23,19 +23,7 @@ Many assumptions are made when applying the afni script. We suggest running the 
 `event-file`: Explanatory variable (EVs) custom text files. Identify in config options the event files type (BIDS-Formatted|FSL-3 Column Format|FSL-1 Entry Per Volume). If not event file is passed, events will be downloaded from flywheel acquisition.
 
 
-## Configuration 
-
-`events-suffix`: suffix used to select correct events file from bids curated dataset. Events may be pulled directly from acquisition container if no event file is passed as input.
-
-`output-name`: [NAME].subj directory name. If left blank, output name will be drawn from the template file.
-
-`confound-list`: Comma seperated list of components to be included in glm confounds. Confound timeseries will be pulled from confound file in inputs if passed, otherwise defaults to using bids derivative file '*counfound_timeseries.tsv'. Example entry: rot_x, rot_y, rot_z, trans_x, trans_y, trans_z. If left blank no confounds will be included in feat analysis. Python regular expressions may be used to select variable number of components.
-
-`DropNonSteadyState`: set whether or not to remove XX number of initial non-steady state volumes. If no value is passed in 'DummyVolumes', non-steady state number is taken from mriqc IQMs, if neither are defined, an error will be returned.
-
-`DummyVolumes`: Number of dummy volumes to ignore at the beginning of scan. Leave blank if you want to use the non-steady state volumes recorded in mriqc IQMs.
-
-`evformat`: (Default: BIDS-Formatted) Select type of file where events are stored. Selected format should match format provided in the events input file, or files downloaded directly from flywheel acquisition. If format passed is not AFNI compatible, update format to match AFNI requirements before running analysis. Options: BIDS-Formatted|FSL-3 Column Format|FSL-1 Entry Per Volume.
+## Configuration
 
 `gear-log-level`: Gear Log verbosity level (ERROR|WARNING|INFO|DEBUG)
 

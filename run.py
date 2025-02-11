@@ -76,7 +76,7 @@ def main(context: GearToolkitContext):
         try:
             # Pass the args, kwargs to fw_gear_qsiprep.main.run function to execute
             # the main functionality of the gear.
-            e_code = run(gear_options, app_options, context)
+            e_code = run(gear_options, app_options)
 
 
         except RuntimeError as exc:
