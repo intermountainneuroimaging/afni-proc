@@ -98,29 +98,48 @@ def parse_config(
     log.debug(stdout)
     log.debug(stderr)
 
-    cmd = "suma -update_env"
-    log.debug("\n %s", cmd)
-    terminal = sp.Popen(
-        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
-    )
-    stdout, stderr = terminal.communicate()
-    log.debug(stdout)
-    log.debug(stderr)
+    # cmd = "suma -update_env"
+    # log.debug("\n %s", cmd)
+    # terminal = sp.Popen(
+    #     cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    # )
+    # stdout, stderr = terminal.communicate()
+    # log.debug(stdout)
+    # log.debug(stderr)
+    #
+    # cmd = "apsearch -update_all_afni_help"
+    # log.debug("\n %s", cmd)
+    # terminal = sp.Popen(
+    #     cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
+    # )
+    # stdout, stderr = terminal.communicate()
+    # log.debug(stdout)
+    # log.debug(stderr)
 
-    cmd = "apsearch -update_all_afni_help"
-    log.debug("\n %s", cmd)
-    terminal = sp.Popen(
-        cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE, universal_newlines=True
-    )
-    stdout, stderr = terminal.communicate()
-    log.debug(stdout)
-    log.debug(stderr)
+    # flywheel sdk objects that we need later...
+    destination = gear_context.client.get(gear_context.destination["id"])
+    subject = gear_context.client.get(destination.parents.subject)
+    session = gear_context.client.get(destination.parents.session)
+
+    app_options["sid"] = subject.label
+    app_options["sesid"] = session.label
+
+    # check if tasks are exact match to existing acquisitions, or look for wildcard match
+    acq_labels = [acq.label for acq in session.acquisitions.iter_find()]
+    app_options["acq_labels"] = acq_labels
 
     if gear_context.get_input_path("preprocessing-pipeline-zip"):
         # unzip input files
         gear_options["preproc_zipfile"] = gear_context.get_input_path("preprocessing-pipeline-zip")
         log.info("Inputs file path, %s", gear_options["preproc_zipfile"])
-        unzip_inputs(gear_options, gear_options["preproc_zipfile"])
+        rc, outpath = unzip_inputs(gear_options, gear_options["preproc_zipfile"])
+        try:
+            tmp = [s for s in outpath if os.path.basename(s) in gear_options["preproc_gear"].job.gear_info['name']]
+            outpath = tmp[0]
+        except:
+            pass
+        download_bids_events(outpath, session, gear_context.client)
+        app_options["pipeline"] = os.path.basename(outpath)
 
     else:
         # Given the destination container, figure out if running at the project,
@@ -179,18 +198,6 @@ def parse_config(
     else:
         app_options["events-in-inputs"] = False  # look for events in flywheel acquisition
 
-
-    # building file mapper methods to generate bids filename and path
-    destination = gear_context.client.get(gear_context.destination["id"])
-    subject = gear_context.client.get(destination.parents.subject)
-    session = gear_context.client.get(destination.parents.session)
-
-    app_options["sid"] = subject.label
-    app_options["sesid"] = session.label
-
-    # check if tasks are exact match to existing acquisitions, or look for wildcard match
-    acq_labels = [acq.label for acq in session.acquisitions.iter_find()]
-    app_options["acq_labels"] = acq_labels
 
     # pull original file structure
     orig = []
@@ -253,5 +260,24 @@ def unzip_inputs(gear_options, zip_filename):
         return run_error
 
     return rc, outpath
+
+
+def download_bids_events(path, session, client):
+    full_session = client.get_session(session.id)  # this is necessary to pull the full object
+
+    for acq in full_session.acquisitions():
+        full_acq = client.get_acquisition(acq.id)   # this is necessary to pull the full object
+        if "BIDS" not in full_acq.info.keys() or full_acq.info["BIDS"]["ignore"]:
+            continue
+        for fl in full_acq.files:
+            if "BIDS" in fl.info.keys():
+                mod = fl.info["BIDS"]["Modality"] if "Modality" in fl.info["BIDS"] else None
+                if fl.info["BIDS"]["ignore"] or mod != "events":
+                    continue
+                bidspath = os.path.join(path,fl.info["BIDS"]["Path"],fl.info["BIDS"]["Filename"])
+                os.makedirs(os.path.dirname(bidspath),exist_ok = True)
+                fl.download(bidspath)
+                log.info("Downloaded: %s", bidspath)
+    return
 
 
