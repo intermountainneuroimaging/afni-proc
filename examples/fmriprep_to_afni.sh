@@ -24,6 +24,7 @@ OUTPUTPATH={WORKDIR}/afni
 EVENTNAME=years
 
 mkdir -p $OUTPUTPATH
+cd $OUTPUTPATH
 
 echo "Using Inputs directory: $INPUTPATH"
 echo "Using Outputs directory: $OUTPUTPATH"
@@ -57,7 +58,7 @@ done < _conditions
 
 
 #bash code to sub select columns from csv then merge to one file
-pip install csvkit
+#pip install csvkit
 
 echo "Generating motion and nuisance regression files from fmriprep...."
 

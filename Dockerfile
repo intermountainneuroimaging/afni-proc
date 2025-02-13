@@ -147,6 +147,9 @@ RUN apt-get update -qq \
            rsync \
     && apt-get clean
 
+# install csvkit used to work with spreadsheet files from the terminal
+RUN pip install csvkit
+
 ######################################################
 # FLYWHEEL GEAR STUFF...
 USER root
