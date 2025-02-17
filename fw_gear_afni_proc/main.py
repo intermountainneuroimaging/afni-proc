@@ -74,7 +74,7 @@ def run(gear_options: dict, app_options: dict) -> int:
     # run!
     cmd = ["bash", runfile]
     if gear_options['config'].get("gear-log-to-file"):
-        cmd = cmd + [">", os.path.join(gear_options["output-dir"], "log1.txt")]
+        cmd = cmd + [" > ", os.path.join(gear_options["output-dir"], "log1.txt"), "2>&1"]
     stdout, stderr, run_error = exec_command(
         cmd,
         dry_run=gear_options["dry-run"],
