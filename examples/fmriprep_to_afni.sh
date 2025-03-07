@@ -33,7 +33,7 @@ for idx in "${!files[@]}"; do
 done
 }
 
-function motion_rad_t0_deg () {
+function motion_rad_to_deg () {
 file=$1
 while IFS=' ' read -r trans_x trans_y trans_z rot_x rot_y rot_z
 do
@@ -55,24 +55,27 @@ mv $file.bak $file
 #            START RUN SCRIPT: YEARS
 # --------------------------------------------------
 
-INPUTPATH={WORKDIR}/{PIPELINE}
+# USER INPUTS!!
+FMRIPATH={WORKDIR}/{PIPELINE}/sub-{SUBJECT}/ses-{SESSION}/func/
 OUTPUTPATH={WORKDIR}/afni
 EVENTNAME=years
+TRIMFRAMES=22
+TR=0.460
+EVENTSPATH={WORKDIR}/{PIPELINE}/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/
 
 mkdir -p $OUTPUTPATH
+mkdir -p $EVENTSPATH
 cd $OUTPUTPATH
 
 echo "Running Pipleine for fMRI acquistion type: $EVENTNAME"
-echo "Using Inputs directory: $INPUTPATH"
+echo "Using Inputs directory: $FMRIPATH"
 echo "Using Outputs directory: $OUTPUTPATH"
 
-# enable pipefail option so that results of sswarper and afni_proc report exit status after pipe
-set -o pipefail
 
 echo "Generating afni event timing 1D files...."
 touch _conditions
 # bash code to store contents of bids-formatted file to fsl file format, then generate afni files
-filepath_regex=$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*task-${EVENTNAME}*events*.tsv
+filepath_regex=$FMRIPATH/*task-${EVENTNAME}*events*.tsv
 event_count=$(ls $filepath_regex | wc -l)
 echo "Using files for event timing..."
 ls $filepath_regex
@@ -86,19 +89,21 @@ for filename in `ls $filepath_regex` ; do
     done
 done
 
-mkdir -p $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/
+# apply timing offset to match afni-proc trimming
+OFFSET=$(echo "$TR * $TRIMFRAMES" | bc -l)
+echo "Including timing offset: $OFFSET"
 
 # generate afni 1D files
 echo "Using conditions: "
 while IFS= read -r condition; do
 echo "  $condition"
-timing_tool.py -write_as_married -fsl_timing_files $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*${EVENTNAME}*${condition}.txt -write_timing $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/${condition}.1D
+timing_tool.py -write_as_married -add_offset -$OFFSET -fsl_timing_files $FMRIPATH/*${EVENTNAME}*${condition}.txt -write_timing $EVENTSPATH/${condition}.1D
 done < _conditions
 
 # delete intermediate files
 rm _conditions
-rm $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*${EVENTNAME}*${condition}.txt
-rm $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*${EVENTNAME}*events.tsv
+rm $FMRIPATH/*${EVENTNAME}*${condition}.txt
+rm $FMRIPATH/*${EVENTNAME}*events.tsv
 
 #bash code to sub select columns from csv then merge to one file
 #pip install csvkit
@@ -106,7 +111,7 @@ rm $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*${EVENTNAME}*events.tsv
 echo "Generating motion and nuisance regression files from fmriprep...."
 
 # select only columns from fmriprep confounds of interest for nuisance regression - using regular expression
-filepath_regex=$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*task-${EVENTNAME}*confounds_timeseries.tsv
+filepath_regex=$FMRIPATH/*task-${EVENTNAME}*confounds_timeseries.tsv
 confounds_count=$(ls $filepath_regex | wc -l)
 echo "Using files for confounds..."
 ls $filepath_regex
@@ -115,17 +120,18 @@ regressors_of_interest "$(ls $filepath_regex)"
 # add a run-id regressor to nuisance regression list
 add_run_regressor "$(ls ${filepath_regex//.tsv/.nr.csv})"
 
-# compile all nuisance regressors in one place (remove header while you are at it)
-{ tail -n +2 -q ${filepath_regex//.tsv/.nr.csv} | sed 's/,/ /g' ; } > $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_nuisance_regressors.1D
+# compile all nuisance regressors in one place (remove header and non-steady state volumes while you are at it)
+var=$(echo 2+$TRIMFRAMES | bc -l)
+{ tail -n +$var -q ${filepath_regex//.tsv/.nr.csv} | sed 's/,/ /g' ; } > $FMRIPATH/${EVENTNAME}_nuisance_regressors.1D
 echo "wrote.... nuisance_regressors.1D"
 
 # compile all motion regressors in one place (remove header while you are at it)
-{ tail -n +2 -q ${filepath_regex//.tsv/.motion.csv} | sed 's/,/ /g' ;} > $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_motion.1D
+{ tail -n +$var -q ${filepath_regex//.tsv/.motion.csv} | sed 's/,/ /g' ;} > $FMRIPATH/${EVENTNAME}_motion.1D
 
 #reorder motion file as afni expects (roll pitch yaw dS dL dP) * and convert to degrees
 #    AFNI units: degrees CCW, mm. Order: n (index) roll (I-S axis), pitch (R-L axis), yaw (A-P axis), dS, dL, dP
 #    fmriprep units: radians, mm. Order: trans_x, trans_y, trans_z, rot_x, rot_y, rot_z
-motion_rad_t0_deg "$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_motion.1D"
+motion_rad_to_deg "$FMRIPATH/${EVENTNAME}_motion.1D"
 echo "wrote.... motion.1D"
 
 # delete intermediate files
@@ -144,76 +150,78 @@ fi
 # DO THE IMAGING STUFF NOW....
 
 # generate func mask from fmriprep derivatives
-filepath_regex=$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*task-${EVENTNAME}*space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz
+filepath_regex=$FMRIPATH/*task-${EVENTNAME}*space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz
 mask_count=$(ls $filepath_regex | wc -l)
 echo "Using files for input mask..."
 ls $filepath_regex
 
-cmd="3dmask_tool -inputs $(ls $filepath_regex) -union -prefix $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_full_mask.nii"
+cmd="3dmask_tool -inputs $(ls $filepath_regex) -union -prefix $FMRIPATH/${EVENTNAME}_full_mask.nii"
 echo $cmd
 $cmd
 echo "wrote.... full_mask.nii"
 
 # run proc
 echo "Running afni_proc.py...."
-afni_proc.py                                                                                                                                                                                  \
-            -subj_id                  sub-{SUBJECT}                                                                                                                                           \
-            -out_dir                  $OUTPUTPATH/proc_output.fmriprep.${EVENTNAME}.{SUBJECT}                                                                                                        \
-            -script                   $OUTPUTPATH/run_proc.fmriprep.${EVENTNAME}.{SUBJECT}                                                                                                           \
-            -scr_overwrite                                                                                                                                                                    \
-            -dsets                    $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-01_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-02_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-03_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-04_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
-            -blocks blur mask scale regress                                                                                                                                                   \
-            -blur_size 6.0                                                                                                                                                                    \
-            -tcat_remove_first_trs 22                                                                                                                                                         \
-            -regress_motion_file      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_motion.1D                                                                                      \
-            -regress_extra_ortvec     $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_nuisance_regressors.1D                                                                         \
-            -regress_stim_times       $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/Cue.look.1D                                                                                  \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/Cue.decrease.1D                                                                              \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/ImagePos.look.1D                                                                             \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/ImagePos.decrease.1D                                                                         \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/ImageNeut.look.1D                                                                            \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/ImageNeg.look.1D                                                                             \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/ImageNeg.decrease.1D                                                                         \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/AffectratingPos.look.1D                                                                      \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/AffectratingPos.decrease.1D                                                                  \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/AffectratingNeg.look.1D                                                                      \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/AffectratingNeg.decrease.1D                                                                  \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/iti.1D                                                                                       \
-            -regress_stim_labels      cue.look                                                                                                                                                \
-                                      cue.decrease                                                                                                                                            \
-                                      image.pos.look                                                                                                                                          \
-                                      image.pos.decrease                                                                                                                                      \
-                                      image.neut.look                                                                                                                                         \
-                                      image.neg.look                                                                                                                                          \
-                                      image.neg.decrease                                                                                                                                      \
-                                      affectrating.pos.look                                                                                                                                   \
-                                      affectrating.neg.look                                                                                                                                   \
-                                      affectrating.pos.decrease                                                                                                                               \
-                                      affectrating.neg.decrease                                                                                                                               \
-                                      iti                                                                                                                                                     \
-            -regress_stim_types       AM1                                                                                                                                                     \
-            -regress_basis_multi      'dmUBLOCK(-1)'                                                                                                                                          \
-            -regress_local_times                                                                                                                                                              \
-            -regress_opts_3dD         -jobs 8                                                                                                                                                 \
-	                              -mask $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_full_mask.nii	                                                                                \
-                                      -num_glt 1                                                                                                                                              \
-                                      -gltsym 'SYM:  +image.pos.decrease +image.neg.decrease -image.pos.look -image.neg.look ' -glt_label 1 'ME_Ch_L'                                         \
-            -regress_motion_per_run                                                                                                                                                           \
-            -regress_censor_motion    0.3                                                                                                                                                     \
-            -regress_censor_outliers  0.05                                                                                                                                                    \
-            -regress_compute_fitts                                                                                                                                                            \
-            -regress_fout             no                                                                                                                                                      \
-            -regress_3dD_stop                                                                                                                                                                 \
-            -regress_reml_exec                                                                                                                                                                \
-            -regress_make_ideal_sum   sum_ideal.1D                                                                                                                                            \
-            -regress_est_blur_errts                                                                                                                                                           \
-            -regress_run_clustsim     no                                                                                                                                                      \
-            -html_review_style        pythonic                                                                                                                                                \
-            -bash -execute                                                                                                                                                                    \
-            2>&1 | tee $OUTPUTPATH/log.afniproc.fmriprep.${EVENTNAME}.sub-{SUBJECT}
+afni_proc.py                                                                                                                                                \
+            -subj_id                  sub-{SUBJECT}                                                                                                         \
+            -out_dir                  proc_output.fmriprep.${EVENTNAME}.{SUBJECT}                                                                           \
+            -script                   run_proc.fmriprep.${EVENTNAME}.{SUBJECT}                                                                              \
+            -scr_overwrite                                                                                                                                  \
+            -dsets                    $FMRIPATH/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-01_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
+                                      $FMRIPATH/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-02_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
+                                      $FMRIPATH/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-03_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
+                                      $FMRIPATH/sub-{SUBJECT}_ses-{SESSION}_task-years_dir-ap_run-04_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz     \
+            -blocks blur mask scale regress                                                                                                                 \
+            -blur_size 6.0                                                                                                                                  \
+            -tcat_remove_first_trs 22                                                                                                                       \
+            -regress_motion_file      $FMRIPATH/${EVENTNAME}_motion.1D                                                                                      \
+            -regress_extra_ortvec     $FMRIPATH/${EVENTNAME}_nuisance_regressors.1D                                                                         \
+            -regress_stim_times       $EVENTSPATH/Cue.look.1D                                                                                  \
+                                      $EVENTSPATH/Cue.decrease.1D                                                                              \
+                                      $EVENTSPATH/ImagePos.look.1D                                                                             \
+                                      $EVENTSPATH/ImagePos.decrease.1D                                                                         \
+                                      $EVENTSPATH/ImageNeut.look.1D                                                                            \
+                                      $EVENTSPATH/ImageNeg.look.1D                                                                             \
+                                      $EVENTSPATH/ImageNeg.decrease.1D                                                                         \
+                                      $EVENTSPATH/AffectratingPos.look.1D                                                                      \
+                                      $EVENTSPATH/AffectratingPos.decrease.1D                                                                  \
+                                      $EVENTSPATH/AffectratingNeg.look.1D                                                                      \
+                                      $EVENTSPATH/AffectratingNeg.decrease.1D                                                                  \
+                                      $EVENTSPATH/iti.1D                                                                                       \
+            -regress_stim_labels      cue.look                                                                                                              \
+                                      cue.decrease                                                                                                          \
+                                      image.pos.look                                                                                                        \
+                                      image.pos.decrease                                                                                                    \
+                                      image.neut.look                                                                                                       \
+                                      image.neg.look                                                                                                        \
+                                      image.neg.decrease                                                                                                    \
+                                      affectrating.pos.look                                                                                                 \
+                                      affectrating.pos.decrease                                                                                             \
+                                      affectrating.neg.look                                                                                                 \
+                                      affectrating.neg.decrease                                                                                             \
+                                      iti                                                                                                                   \
+            -regress_stim_types       AM1                                                                                                                   \
+            -regress_basis_multi      'dmUBLOCK(-1)'                                                                                                        \
+            -regress_local_times                                                                                                                            \
+            -regress_opts_reml        -GOFORIT 1                                                                                                            \
+            -regress_opts_3dD         -jobs 8                                                                                                               \
+	                              -mask $FMRIPATH/${EVENTNAME}_full_mask.nii	                                                                    \
+	                              -allzero_OK                                                                                                           \
+	    	                      -GOFORIT 1                                                                                                            \
+                                      -num_glt 1                                                                                                            \
+                                      -gltsym 'SYM:  +image.pos.decrease +image.neg.decrease -image.pos.look -image.neg.look ' -glt_label 1 'ME_Ch_L'       \
+            -regress_motion_per_run                                                                                                                         \
+            -regress_censor_motion    0.3                                                                                                                   \
+            -regress_censor_outliers  0.05                                                                                                                  \
+            -regress_compute_fitts                                                                                                                          \
+            -regress_fout             no                                                                                                                    \
+            -regress_3dD_stop                                                                                                                               \
+            -regress_reml_exec                                                                                                                              \
+            -regress_make_ideal_sum   sum_ideal.1D                                                                                                          \
+            -regress_est_blur_errts                                                                                                                         \
+            -regress_run_clustsim     no                                                                                                                    \
+            -html_review_style        pythonic                                                                                                              \
+            -bash -execute  
 
 
 # report final exit status
@@ -232,20 +240,25 @@ fi
 #             START RUN SCRIPT: MID
 # --------------------------------------------------
 
-INPUTPATH={WORKDIR}/{PIPELINE}
+FMRIPATH={WORKDIR}/{PIPELINE}/sub-{SUBJECT}/ses-{SESSION}/func/
 OUTPUTPATH={WORKDIR}/afni
 EVENTNAME=mid
+TRIMFRAMES=0
+TR=2.6
+EVENTSPATH={WORKDIR}/{PIPELINE}/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/
 
 mkdir -p $OUTPUTPATH
+mkdir -p $EVENTSPATH
 cd $OUTPUTPATH
+
 echo "Running Pipleine for fMRI acquistion type: $EVENTNAME"
-echo "Using Inputs directory: $INPUTPATH"
+echo "Using Inputs directory: $FMRIPATH"
 echo "Using Outputs directory: $OUTPUTPATH"
 
 echo "Generating afni event timing 1D files...."
 touch _conditions
 # bash code to store contents of bids-formatted file to fsl file format, then generate afni files
-filepath_regex=$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*task-${EVENTNAME}*events*.tsv
+filepath_regex=$FMRIPATH/*task-${EVENTNAME}*events*.tsv
 event_count=$(ls $filepath_regex | wc -l)
 echo "Using files for event timing..."
 ls $filepath_regex
@@ -259,24 +272,29 @@ for filename in `ls $filepath_regex` ; do
     done
 done
 
-mkdir -p $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/
+# apply timing offset to match afni-proc trimming
+OFFSET=$(echo "$TR * $TRIMFRAMES" | bc -l)
+echo "Including timing offset: $OFFSET"
 
 # generate afni 1D files
 echo "Using conditions: "
 while IFS= read -r condition; do
 echo "  $condition"
-timing_tool.py -write_as_married -fsl_timing_files $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*${EVENTNAME}*${condition}.txt -write_timing $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/${condition}.1D
+timing_tool.py -write_as_married -add_offset -$OFFSET -fsl_timing_files $FMRIPATH/*${EVENTNAME}*${condition}.txt -write_timing $EVENTSPATH/${condition}.1D
 done < _conditions
 
 # delete intermediate files
 rm _conditions
-rm $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*${EVENTNAME}*${condition}.txt
-rm $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*${EVENTNAME}*events.tsv
+rm $FMRIPATH/*${EVENTNAME}*${condition}.txt
+rm $FMRIPATH/*${EVENTNAME}*events.tsv
+
+#bash code to sub select columns from csv then merge to one file
+#pip install csvkit
 
 echo "Generating motion and nuisance regression files from fmriprep...."
 
 # select only columns from fmriprep confounds of interest for nuisance regression - using regular expression
-filepath_regex=$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*task-${EVENTNAME}*confounds_timeseries.tsv
+filepath_regex=$FMRIPATH/*task-${EVENTNAME}*confounds_timeseries.tsv
 confounds_count=$(ls $filepath_regex | wc -l)
 echo "Using files for confounds..."
 ls $filepath_regex
@@ -285,17 +303,18 @@ regressors_of_interest "$(ls $filepath_regex)"
 # add a run-id regressor to nuisance regression list
 add_run_regressor "$(ls ${filepath_regex//.tsv/.nr.csv})"
 
-# compile all nuisance regressors in one place (remove header while you are at it)
-{ tail -n +2 -q ${filepath_regex//.tsv/.nr.csv} | sed 's/,/ /g' ; } > $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_nuisance_regressors.1D
+# compile all nuisance regressors in one place (remove header and non-steady state volumes while you are at it)
+var=$(echo 2+$TRIMFRAMES | bc -l)
+{ tail -n +$var -q ${filepath_regex//.tsv/.nr.csv} | sed 's/,/ /g' ; } > $FMRIPATH/${EVENTNAME}_nuisance_regressors.1D
 echo "wrote.... nuisance_regressors.1D"
 
 # compile all motion regressors in one place (remove header while you are at it)
-{ tail -n +2 -q ${filepath_regex//.tsv/.motion.csv} | sed 's/,/ /g' ;} > $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_motion.1D
+{ tail -n +$var -q ${filepath_regex//.tsv/.motion.csv} | sed 's/,/ /g' ;} > $FMRIPATH/${EVENTNAME}_motion.1D
 
 #reorder motion file as afni expects (roll pitch yaw dS dL dP) * and convert to degrees
 #    AFNI units: degrees CCW, mm. Order: n (index) roll (I-S axis), pitch (R-L axis), yaw (A-P axis), dS, dL, dP
-#    fmriprep units: radians, mm. Order: rot_x, rot_y, rot_z, trans_x, trans_y, trans_z
-motion_rad_t0_deg "$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_motion.1D"
+#    fmriprep units: radians, mm. Order: trans_x, trans_y, trans_z, rot_x, rot_y, rot_z
+motion_rad_to_deg "$FMRIPATH/${EVENTNAME}_motion.1D"
 echo "wrote.... motion.1D"
 
 # delete intermediate files
@@ -314,12 +333,12 @@ fi
 # DO THE IMAGING STUFF NOW....
 
 # generate func mask from fmriprep derivatives
-filepath_regex=$INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/*task-${EVENTNAME}*space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz
+filepath_regex=$FMRIPATH/*task-${EVENTNAME}*space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz
 mask_count=$(ls $filepath_regex | wc -l)
 echo "Using files for input mask..."
 ls $filepath_regex
 
-cmd="3dmask_tool -inputs $(ls $filepath_regex) -union -prefix $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_full_mask.nii"
+cmd="3dmask_tool -inputs $(ls $filepath_regex) -union -prefix $FMRIPATH/${EVENTNAME}_full_mask.nii"
 echo $cmd
 $cmd
 echo "wrote.... full_mask.nii"
@@ -327,47 +346,49 @@ echo "wrote.... full_mask.nii"
 
 # run proc
 echo "Running afni_proc.py...."
-afni_proc.py                                                                                                                                                                                  \
-            -subj_id                  sub-{SUBJECT}                                                                                                                                           \
-            -out_dir                  $OUTPUTPATH/proc_output.fmriprep.${EVENTNAME}.{SUBJECT}                                                                                                 \
-            -script                   $OUTPUTPATH/run_proc.fmriprep.${EVENTNAME}.{SUBJECT}                                                                                                    \
-            -scr_overwrite                                                                                                                                                                    \
-            -dsets                    {WORKDIR}/{PIPELINE}/sub-{SUBJECT}/ses-{SESSION}/func/sub-{SUBJECT}_ses-{SESSION}_task-mid_dir-ap_run-01_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz      \
-            -blocks                   blur mask scale regress                                                                                                                                 \
-            -blur_size                6.0                                                                                                                                                     \
-            -tcat_remove_first_trs    0                                                                                                                                                       \
-            -regress_motion_file      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_motion.1D                                                                                      \
-            -regress_extra_ortvec     $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_nuisance_regressors.1D                                                                         \
-            -regress_stim_times       $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/instructions.1D                                                                              \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/E.cue.1D                                                                                     \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/E.target.1D                                                                                  \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/E.failure.1D                                                                                 \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/P.cue.1D                                                                                     \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/P.target.1D                                                                                  \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/P.failure.1D                                                                                 \
-                                      $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/events/${EVENTNAME}/iti.1D                                                                                       \
-            -regress_stim_labels      instr E.cue E.target E.failure P.cue P.target P.failure iti                                                                                             \
-            -regress_stim_types       AM1                                                                                                                                                     \
-            -regress_basis_multi      'dmUBLOCK(-1)'                                                                                                                                          \
-            -regress_local_times                                                                                                                                                              \
-            -regress_opts_3dD         -jobs 8                                                                                                                                                 \
-	                                    -mask $INPUTPATH/sub-{SUBJECT}/ses-{SESSION}/func/${EVENTNAME}_full_mask.nii	                                                                          \
-                                      -num_glt 1                                                                                                                                              \
-                                      -gltsym 'SYM: 0.5*E.target +0.5*P.target '                                    \
-                                      -glt_label 1 posControl                                                       \
-            -regress_motion_per_run                                                                                                                                                           \
-            -regress_censor_motion    0.3                                                                                                                                                     \
-            -regress_censor_outliers  0.05                                                                                                                                                    \
-            -regress_compute_fitts                                                                                                                                                            \
-            -regress_fout             no                                                                                                                                                      \
-            -regress_3dD_stop                                                                                                                                                                 \
-            -regress_reml_exec                                                                                                                                                                \
-            -regress_make_ideal_sum   sum_ideal.1D                                                                                                                                            \
-            -regress_est_blur_errts                                                                                                                                                           \
-            -regress_run_clustsim     no                                                                                                                                                      \
-            -html_review_style        pythonic                                                                                                                                                \
-            -bash -execute                                                                                                                                                                    \
-            2>&1 | tee $OUTPUTPATH/log.afniproc.fmriprep.${EVENTNAME}.sub-{SUBJECT}
+afni_proc.py                                                                                                                                                \
+            -subj_id                  sub-{SUBJECT}                                                                                                         \
+            -out_dir                  proc_output.fmriprep.${EVENTNAME}.{SUBJECT}                                                                           \
+            -script                   run_proc.fmriprep.${EVENTNAME}.{SUBJECT}                                                                              \
+            -scr_overwrite                                                                                                                                  \
+            -dsets                    $FMRIPATH/sub-{SUBJECT}_ses-{SESSION}_task-mid_dir-ap_run-01_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz       \
+            -blocks                   blur mask scale regress                                                                                               \
+            -blur_size                6.0                                                                                                                   \
+            -tcat_remove_first_trs    0                                                                                                                     \
+            -regress_motion_file      $FMRIPATH/${EVENTNAME}_motion.1D                                                                                      \
+            -regress_extra_ortvec     $FMRIPATH/${EVENTNAME}_nuisance_regressors.1D                                                                         \
+            -regress_stim_times       $EVENTSPATH/instructions.1D                                                                              \
+                                      $EVENTSPATH/E.cue.1D                                                                                     \
+                                      $EVENTSPATH/E.target.1D                                                                                  \
+                                      $EVENTSPATH/E.failure.1D                                                                                 \
+                                      $EVENTSPATH/P.cue.1D                                                                                     \
+                                      $EVENTSPATH/P.target.1D                                                                                  \
+                                      $EVENTSPATH/P.failure.1D                                                                                 \
+                                      $EVENTSPATH/iti.1D                                                                                       \
+            -regress_stim_labels      instr E.cue E.target E.failure P.cue P.target P.failure iti                                                           \
+            -regress_stim_types       AM1                                                                                                                   \
+            -regress_basis_multi      'dmUBLOCK(-1)'                                                                                                        \
+            -regress_local_times                                                                                                                            \
+            -regress_opts_3dD         -jobs 8                                                                                                               \
+	                              -mask $FMRIPATH/${EVENTNAME}_full_mask.nii	                                                                    \
+	                              -allzero_OK                                                                                                           \
+	    	                      -GOFORIT 1                                                                                                            \
+                                      -num_glt 1                                                                                                            \
+                                      -gltsym 'SYM: 0.5*E.target +0.5*P.target '                                                                            \
+                                      -glt_label 1 posControl                                                                                               \
+            -regress_opts_reml        -GOFORIT 1                                                                                                            \
+            -regress_motion_per_run                                                                                                                         \
+            -regress_censor_motion    0.3                                                                                                                   \
+            -regress_censor_outliers  0.05                                                                                                                  \
+            -regress_compute_fitts                                                                                                                          \
+            -regress_fout             no                                                                                                                    \
+            -regress_3dD_stop                                                                                                                               \
+            -regress_reml_exec                                                                                                                              \
+            -regress_make_ideal_sum   sum_ideal.1D                                                                                                          \
+            -regress_est_blur_errts                                                                                                                         \
+            -regress_run_clustsim     no                                                                                                                    \
+            -html_review_style        pythonic                                                                                                              \
+            -bash -execute 
 
 
 # report final exit status
